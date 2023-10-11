@@ -274,7 +274,7 @@ class ImageCaptcha:
 
         if width > self._width:
             image = image.resize((self._width, self._height))
-            image_with_bb = image_with_bb.resize(self._width, self._height)
+            image_with_bb = image_with_bb.resize((self._width, self._height))
         
         return image, image_with_bb
 
@@ -291,8 +291,8 @@ class ImageCaptcha:
         im = im.filter(SMOOTH)
         im_with_bb = im_with_bb.filter(SMOOTH)
         
-        im.show()
-        im_with_bb.show()
+        #im.show()
+        #im_with_bb.show()
         return im, im_with_bb
 
     def generate_image(self, chars: str) -> Image:

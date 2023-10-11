@@ -42,7 +42,7 @@ def main():
         print("Please specify the captcha symbols file")
         exit(1)
 
-    captcha_generator = captcha.image.ImageCaptcha(width=args.width, height=args.height)
+    captcha_generator = ImageCaptcha(width=args.width, height=args.height, fonts=["The Jjester.otf"])
 
     symbols_file = open(args.symbols, 'r')
     captcha_symbols = symbols_file.readline().strip()
@@ -54,24 +54,35 @@ def main():
         print("Creating output directory " + args.output_dir)
         os.makedirs(args.output_dir)
 
+    if not os.path.exists(os.path.join(args.output_dir, "Input")):
+        print("Creating input directory " + os.path.join(args.output_dir, "Input"))
+        os.makedirs(os.path.join(args.output_dir, "Input"))
+
+    if not os.path.exists(os.path.join(args.output_dir, "Target")):
+        print("Creating target directory " + os.path.join(args.output_dir, "Target"))
+        os.makedirs(os.path.join(args.output_dir, "Target"))
+
     for i in range(args.count):
         random_str = ''.join([random.choice(captcha_symbols) for j in range(args.length)])
-        image_path = os.path.join(args.output_dir, random_str+'.png')
-        if os.path.exists(image_path):
+        input_image_path = os.path.join(os.path.join(args.output_dir, "Input"), random_str+'.png')
+        target_image_path = os.path.join(os.path.join(args.output_dir, "Target"), random_str + '.png')
+        if os.path.exists(input_image_path):
             version = 1
-            while os.path.exists(os.path.join(args.output_dir, random_str + '_' + str(version) + '.png')):
+            while os.path.exists(os.path.join(os.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')):
                 version += 1
-            image_path = os.path.join(args.output_dir, random_str + '_' + str(version) + '.png')
+            input_image_path = os.path.join(os.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')
+            target_image_path = os.path.join(os.join(args.output_dir, "Target"), random_str + '_' + str(version) + '.png')
 
-        image = numpy.array(captcha_generator.generate_image(random_str))
-        cv2.imwrite(image_path, image)
+        input_image, target_image = captcha_generator.generate_image_with_bounding_box(random_str)
+        cv2.imwrite(input_image_path, numpy.array(input_image))
+        cv2.imwrite(target_image_path, numpy.array(target_image))
 
 from PIL.Image import new as createImage, Image, QUAD, BILINEAR
 from PIL.ImageDraw import Draw, ImageDraw
 from PIL.ImageFont import FreeTypeFont, truetype
 if __name__ == '__main__':
-    #main()
-    captcha_generator = ImageCaptcha(width=120, height=120, fonts=["The Jjester.otf"])
-    image = createImage('RGB', (120, 120), (255,0,100))
-    draw = Draw(image)
-    captcha_generator.generate_image_with_bounding_box('abcde')
+    main()
+    #captcha_generator = ImageCaptcha(width=120, height=120, fonts=["The Jjester.otf"])
+    #image = createImage('RGB', (120, 120), (255,0,100))
+    #draw = Draw(image)
+    #captcha_generator.generate_image_with_bounding_box('abcde')
