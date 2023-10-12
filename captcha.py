@@ -14,6 +14,9 @@ from PIL.ImageDraw import Draw, ImageDraw
 from PIL.ImageFilter import SMOOTH
 from PIL.ImageFont import FreeTypeFont, truetype
 from io import BytesIO
+import cv2
+import numpy as np
+from PIL import Image
 
 __all__ = ['ImageCaptcha']
 
@@ -177,7 +180,12 @@ class ImageCaptcha:
         #im_bb = im_bb.resize((w2, h2))
         #im_bb = im_bb.transform((w, h), QUAD, data)
         im_bb = im.copy()
-        Draw(im_bb).rectangle([0, 0, im_bb.size[0] - 1, im_bb.size[1] - 1], outline='Red')
+        gray = cv2.cvtColor(np.array(im_bb), cv2.COLOR_BGR2GRAY)
+        ret, im_bb = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        im_bb = cv2.cvtColor(im_bb, cv2.COLOR_GRAY2RGB)
+        im_bb = Image.fromarray(im_bb.astype('uint8'), 'RGB')
+
+        Draw(im_bb).rectangle([0, 0, im_bb.size[0] - 1, im_bb.size[1] - 1], outline='Yellow')
         #im.show()
         #im_bb.show()
         return im, im_bb
@@ -238,7 +246,7 @@ class ImageCaptcha:
         The color should be a tuple of 3 numbers, such as (0, 255, 255).
         """
         image = createImage('RGB', (self._width, self._height), background)
-        image_with_bb = createImage('RGB', (self._width, self._height), background)#image.copy()
+        image_with_bb = createImage('RGB', (self._width, self._height), (0,0,0))#image.copy()
         draw = Draw(image)
 
         images: t.List[Image] = []
