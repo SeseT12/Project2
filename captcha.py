@@ -236,7 +236,7 @@ class ImageCaptcha:
             self,
             chars: str,
             color: ColorTuple,
-            background: ColorTuple) -> (Image, Image):
+            background: ColorTuple):
         """Create the CAPTCHA image itself.
 
         :param chars: text to be generated.
@@ -251,14 +251,17 @@ class ImageCaptcha:
 
         images: t.List[Image] = []
         images_with_bb: t.List[Image] = []
+        image_empty = []
         for c in chars:
             if random.random() > 0.5:
                 blank_image = self._draw_character(" ", draw, color)
                 images.append(blank_image)
                 images_with_bb.append(blank_image)
+                image_empty.append(True)
             character_image, character_bb_image = self._draw_character_with_bounding_box(c, draw, color)
             images.append(character_image)
             images_with_bb.append(character_bb_image)
+            image_empty.append(False)
 
         text_width = sum([im.size[0] for im in images])
 
@@ -269,14 +272,15 @@ class ImageCaptcha:
         average = int(text_width / len(chars))
         rand = int(0.25 * average)
         offset = int(average * 0.1)
-        
+        bboxes = []
         for i, im in enumerate(images):
             w, h = im.size
             mask = im.convert('L').point(self.lookup_table)
             image.paste(im, (offset, int((self._height - h) / 2)), mask)
-
-            bb_mask = images_with_bb[i].convert('L').point(self.lookup_table)
-            image_with_bb.paste(images_with_bb[i], (offset, int((self._height - h) / 2)), bb_mask)
+            if image_empty[i] is False:
+                bboxes.append([offset, int((self._height - h) / 2), offset + w, int((self._height - h) / 2) + h])
+            #bb_mask = images_with_bb[i].convert('L').point(self.lookup_table)
+            #image_with_bb.paste(images_with_bb[i], (offset, int((self._height - h) / 2)), bb_mask)
             
             offset = offset + w + random.randint(-rand, 0)
 
@@ -284,7 +288,7 @@ class ImageCaptcha:
             image = image.resize((self._width, self._height))
             image_with_bb = image_with_bb.resize((self._width, self._height))
         
-        return image, image_with_bb
+        return image, bboxes#image_with_bb
 
     def generate_image_with_bounding_box(self, chars: str) -> (Image, Image):
         """Generate the image of the given characters.
@@ -293,15 +297,15 @@ class ImageCaptcha:
         """
         background = random_color(238, 255)
         color = random_color(10, 200, random.randint(220, 255))
-        im, im_with_bb = self.create_captcha_image_and_bounding_box(chars, color, background)
+        im, bboxes = self.create_captcha_image_and_bounding_box(chars, color, background)
         self.create_noise_dots(im, color)
         self.create_noise_curve(im, color)
         im = im.filter(SMOOTH)
-        im_with_bb = im_with_bb.filter(SMOOTH)
+        #im_with_bb = im_with_bb.filter(SMOOTH)
         
         #im.show()
         #im_with_bb.show()
-        return im, im_with_bb
+        return im, bboxes
 
     def generate_image(self, chars: str) -> Image:
         """Generate the image of the given characters.

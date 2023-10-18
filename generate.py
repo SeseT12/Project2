@@ -7,6 +7,7 @@ import string
 import cv2
 import argparse
 from captcha import ImageCaptcha
+import xml.etree.ElementTree as ET
 
 def main():
     parser = argparse.ArgumentParser()
@@ -65,24 +66,63 @@ def main():
     for i in range(args.count):
         random_str = ''.join([random.choice(captcha_symbols) for j in range(args.length)])
         input_image_path = os.path.join(os.path.join(args.output_dir, "Input"), random_str+'.png')
-        target_image_path = os.path.join(os.path.join(args.output_dir, "Target"), random_str + '.png')
+        target_xml_path = os.path.join(os.path.join(args.output_dir, "Target"), random_str + '.xml')
         if os.path.exists(input_image_path):
             version = 1
-            while os.path.exists(os.path.join(os.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')):
+            while os.path.exists(os.path.join(os.path.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')):
                 version += 1
-            input_image_path = os.path.join(os.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')
-            target_image_path = os.path.join(os.join(args.output_dir, "Target"), random_str + '_' + str(version) + '.png')
+            input_image_path = os.path.join(os.path.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')
+            target_xml_path = os.path.join(os.path.join(args.output_dir, "Target"), random_str + '_' + str(version) + '.xml')
 
-        input_image, target_image = captcha_generator.generate_image_with_bounding_box(random_str)
+        input_image, bboxes = captcha_generator.generate_image_with_bounding_box(random_str)
         cv2.imwrite(input_image_path, numpy.array(input_image))
-        cv2.imwrite(target_image_path, numpy.array(target_image))
+        bboxes_to_xml(bboxes, target_xml_path)
+
+        #cv2.imwrite(target_image_path, numpy.array(target_image))
+
+
+def bboxes_to_xml(bboxes, file_path):
+    data = ET.Element('bboxes')
+    for bbox in bboxes:
+        bbox_element = ET.SubElement(data, 'bbox')
+        x_min = ET.SubElement(bbox_element, 'x_min')
+        x_min.text = str(bbox[0])
+        y_min = ET.SubElement(bbox_element, 'y_min')
+        y_min.text = str(bbox[1])
+        x_max = ET.SubElement(bbox_element, 'x_max')
+        x_max.text = str(bbox[2])
+        y_max = ET.SubElement(bbox_element, 'y_max')
+        y_max.text = str(bbox[3])
+
+        b_xml = ET.tostring(data)
+
+    with open(file_path, "wb") as f:
+        f.write(b_xml)
 
 from PIL.Image import new as createImage, Image, QUAD, BILINEAR
 from PIL.ImageDraw import Draw, ImageDraw
 from PIL.ImageFont import FreeTypeFont, truetype
 if __name__ == '__main__':
     main()
-    #captcha_generator = ImageCaptcha(width=120, height=120, fonts=["The Jjester.otf"])
-    #image = createImage('RGB', (120, 120), (255,0,100))
-    #draw = Draw(image)
-    #captcha_generator.generate_image_with_bounding_box('abcde')
+    """""""""
+    captcha_generator = ImageCaptcha(width=120, height=120, fonts=["The Jjester.otf"])
+    image = createImage('RGB', (120, 120), (255,0,100))
+    draw = Draw(image)
+    input_image, bboxes = captcha_generator.generate_image_with_bounding_box('abcde')
+    bboxes_to_xml(bboxes)
+    
+    tree = ET.parse('test.xml')
+    root = tree.getroot()
+    bboxes = []
+    for bbox in root.iter('bbox'):
+        print(bbox)
+        bboxes.append([int(bbox[0].text), int(bbox[1].text), int(bbox[2].text), int(bbox[3].text)])
+
+    image_with_bb = createImage('RGB', (120, 120), (0, 0, 0))
+    for bbox2 in bboxes:
+        print(bbox2)
+        Draw(image_with_bb).rectangle(bbox2, outline='Yellow')
+
+    input_image.show()
+    image_with_bb.show()
+    """""""""
