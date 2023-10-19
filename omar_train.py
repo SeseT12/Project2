@@ -1,124 +1,126 @@
+#!/usr/bin/env python3
+
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 import numpy as np
-from skimage import io, color
 import string
 import random
 import argparse
 import tensorflow as tf
-from tensorflow.keras import layers, models, optimizers
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+import tensorflow.keras as keras
+from sklearn.model_selection import train_test_split
+from skimage import io, color
 import xml.etree.ElementTree as ET
-from skimage.color import rgb2gray
-from skimage.filters import threshold_otsu
+from PIL import Image
 
-def create_model(num_classes):
-    model = models.Sequential()
-    model.add(Conv2D(6, (5, 5), activation='relu', input_shape=(32, 32, 3)))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Conv2D(16, (5, 5), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Flatten())
-    model.add(Dense(120, activation='relu'))
-    model.add(Dense(84, activation='relu'))
-    model.add(Dense(num_classes, activation='softmax'))
+
+def create_model(input_shape, num_classes):
+    model = keras.models.Sequential()
+    model.add(keras.layers.Conv2D(6, kernel_size=(5, 5), strides=(1, 1), activation='tanh', input_shape=input_shape, padding='same'))
+    model.add(keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), padding='valid'))
+    model.add(keras.layers.Conv2D(16, kernel_size=(5, 5), strides=(1, 1), activation='tanh', padding='valid'))
+    model.add(keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), padding='valid'))
+    model.add(keras.layers.Flatten())
+    model.add(keras.layers.Dense(120, activation='tanh'))
+    model.add(keras.layers.Dense(84, activation='tanh'))
+    model.add(keras.layers.Dense(num_classes, activation='softmax'))
     return model
-
-def binarize_image(image):
-    gray_image = rgb2gray(image)
-    thresh = threshold_otsu(gray_image)
-    binary_image = gray_image > thresh
-    return binary_image.astype(int)
-
-def preprocess_image(image):
-    resized_image = tf.image.resize(image, (32, 32))
-    binarized_image = binarize_image(resized_image)
-    return resized_image
-
-def preprocess_label(label, captcha_symbols):
-    label = np.array([captcha_symbols.index(ch) for ch in label])
-    return label
-
-class ImageSequence(tf.keras.utils.Sequence):
-    def __init__(self, input_dir, target_dir, batch_size, captcha_symbols):
-        self.input_dir = input_dir
-        self.target_dir = target_dir
-        self.batch_size = batch_size
-        self.captcha_symbols = captcha_symbols
-        self.files = [file.split('.')[0] for file in os.listdir(input_dir)]
-        self.indexes = np.arange(len(self.files))
-
-    def __len__(self):
-        return int(np.ceil(len(self.files) / float(self.batch_size)))
-
-    def __getitem__(self, idx):
-        batch_files = self.files[idx * self.batch_size:(idx + 1) * self.batch_size]
-        batch_x = []
-        batch_y = []
-
-        for file in batch_files:
-            input_image_path = os.path.join(self.input_dir, file + '.png')
-            target_xml_path = os.path.join(self.target_dir, file + '.xml')
-
-            raw_data = io.imread(input_image_path)
-            processed_data = preprocess_image(raw_data)
-            batch_x.append(processed_data)
-
-            bboxes = parse_xml(target_xml_path)
-            label = file.split('_')[0]
-            batch_y.append(preprocess_label(label, self.captcha_symbols))
-
-        return np.array(batch_x), np.array(batch_y)
-
 
 def parse_xml(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
     bboxes = []
-    for bbox in root.iter('bbox'):
+    for bbox in root.findall('bbox'):
         x_min = int(bbox.find('x_min').text)
         y_min = int(bbox.find('y_min').text)
         x_max = int(bbox.find('x_max').text)
         y_max = int(bbox.find('y_max').text)
-        bboxes.append([x_min, y_min, x_max, y_max])
+        bboxes.append((x_min, y_min, x_max, y_max))
     return bboxes
-
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--width', help='Width of captcha image', type=int)
-    parser.add_argument('--height', help='Height of captcha image', type=int)
-    parser.add_argument('--batch-size', help='Batch size for training', type=int, default=32)
-    parser.add_argument('--epochs', help='Number of epochs for training', type=int, default=10)
-    parser.add_argument('--train-input-dir', help='Path to the training input directory', type=str)
-    parser.add_argument('--train-target-dir', help='Path to the training target directory', type=str)
-    parser.add_argument('--validation-input-dir', help='Path to the validation input directory', type=str)
-    parser.add_argument('--validation-target-dir', help='Path to the validation target directory', type=str)
+    parser.add_argument('--image-dir', help='Directory containing training images', type=str)
+    parser.add_argument('--xml-dir', help='Directory containing XML files', type=str)
+    parser.add_argument('--output-model-name', help='Name for the trained model', type=str, default="model")
+    parser.add_argument('--epochs', help='Number of training epochs', type=int)
     parser.add_argument('--symbols', help='File with the symbols to use in captchas', type=str)
     args = parser.parse_args()
+
+    if args.image_dir is None:
+        print("Please specify the directory containing the training images")
+        exit(1)
+
+    if args.xml_dir is None:
+        print("Please specify the directory containing the XML files")
+        exit(1)
+
+    if args.output_model_name is None:
+        print("Please specify a name for the trained model")
+        exit(1)
+
+    if args.epochs is None:
+        print("Please specify the number of training epochs to run")
+        exit(1)
 
     if args.symbols is None:
         print("Please specify the captcha symbols file")
         exit(1)
 
-    captcha_symbols = None
     with open(args.symbols) as symbols_file:
         captcha_symbols = symbols_file.readline().strip()
 
-    training_data = ImageSequence(args.train_input_dir, args.train_target_dir, args.batch_size, captcha_symbols)
-    validation_data = ImageSequence(args.validation_input_dir, args.validation_target_dir, args.batch_size, captcha_symbols)
-
     num_classes = len(captcha_symbols)
-    model = create_model(num_classes)
 
-    model.compile(optimizer='adam',
-                  loss='sparse_categorical_crossentropy',
-                  metrics=['accuracy'])
+    images = []
+    labels = []
 
-    model.fit(training_data, epochs=args.epochs, validation_data=validation_data)
+    for image_file in os.listdir(args.image_dir):
+        if image_file.endswith(".png"):
+            captcha_text = os.path.splitext(image_file)[0]
+            xml_file = os.path.join(args.xml_dir, captcha_text + '.xml')
+            bboxes = parse_xml(xml_file)
+            raw_data = io.imread(os.path.join(args.image_dir, image_file))
+            rgb_data = color.convert_colorspace(raw_data, 'RGB', 'RGB')
+            for i, bbox in enumerate(bboxes):
+                x_min, y_min, x_max, y_max = bbox
+                char_img = rgb_data[y_min:y_max, x_min:x_max]
+                resized_char_img = np.array(Image.fromarray(char_img).resize((32, 32)))
+                images.append(resized_char_img)
+                label = captcha_text[i]
+                label_index = captcha_symbols.find(label)
+                label_array = np.zeros(num_classes)
+                label_array[label_index] = 1
+                labels.append(label_array)
+
+    images = np.array(images)
+    labels = np.array(labels)
+
+    X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=0.2, random_state=42)
+
+    input_shape = X_train[0].shape
+
+    model = create_model(input_shape, num_classes)
+    model.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.Adam(), metrics=['accuracy'])
+    model.summary()
+
+    callbacks = [
+        keras.callbacks.EarlyStopping(patience=3),
+        keras.callbacks.ModelCheckpoint(args.output_model_name + '.h5', save_best_only=True)
+    ]
+
+    try:
+        model.fit(X_train, y_train, batch_size=32, epochs=args.epochs, validation_data=(X_test, y_test), callbacks=callbacks)
+    except KeyboardInterrupt:
+        print('KeyboardInterrupt caught, saving current weights as ' + args.output_model_name + '_resume.h5')
+        model.save_weights(args.output_model_name + '_resume.h5')
+
+    model_json = model.to_json()
+    with open(args.output_model_name + '.json', 'w') as json_file:
+        json_file.write(model_json)
 
 if __name__ == '__main__':
     main()
