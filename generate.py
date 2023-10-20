@@ -8,6 +8,7 @@ import cv2
 import argparse
 from captcha import ImageCaptcha
 import xml.etree.ElementTree as ET
+import config
 
 def main():
     parser = argparse.ArgumentParser()
@@ -63,20 +64,31 @@ def main():
         print("Creating target directory " + os.path.join(args.output_dir, "Target"))
         os.makedirs(os.path.join(args.output_dir, "Target"))
 
+    if not os.path.exists(os.path.join(args.output_dir, "Captchas")):
+        print("Creating target directory " + os.path.join(args.output_dir, "Captchas"))
+        os.makedirs(os.path.join(args.output_dir, "Captchas"))
+
     for i in range(args.count):
         random_str = ''.join([random.choice(captcha_symbols) for j in range(args.length)])
-        input_image_path = os.path.join(os.path.join(args.output_dir, "Input"), random_str+'.png')
-        target_xml_path = os.path.join(os.path.join(args.output_dir, "Target"), random_str + '.xml')
+        input_image_path = os.path.join(os.path.join(args.output_dir, "Input"), str(i)+'.png')
+        target_xml_path = os.path.join(os.path.join(args.output_dir, "Target"), str(i) + '.xml')
+        captcha_path = os.path.join(os.path.join(args.output_dir, "Captchas"), str(i) + '.txt')
+
+        """""""""
         if os.path.exists(input_image_path):
             version = 1
             while os.path.exists(os.path.join(os.path.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')):
                 version += 1
             input_image_path = os.path.join(os.path.join(args.output_dir, "Input"), random_str + '_' + str(version) + '.png')
             target_xml_path = os.path.join(os.path.join(args.output_dir, "Target"), random_str + '_' + str(version) + '.xml')
+        """""""""
 
         input_image, bboxes = captcha_generator.generate_image_with_bounding_box(random_str)
         cv2.imwrite(input_image_path, numpy.array(input_image))
         bboxes_to_xml(bboxes, target_xml_path)
+        text_file = open(captcha_path, "w+")
+        text_file.write(random_str)
+        text_file.close()
 
         #cv2.imwrite(target_image_path, numpy.array(target_image))
 
