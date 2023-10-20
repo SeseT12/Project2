@@ -45,7 +45,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image-dir', help='Directory containing training images', type=str)
     parser.add_argument('--xml-dir', help='Directory containing XML files', type=str)
-    parser.add_argument('--output-model-name', help='Name for the trained model', type=str, default="model")
+    parser.add_argument('--text-dir', help='Directory containing text files', type=str)  # Added argument for text file directory
+    parser.add_argument('--output-model-name', help='Name for the trained model', type=str)
     parser.add_argument('--epochs', help='Number of training epochs', type=int)
     parser.add_argument('--symbols', help='File with the symbols to use in captchas', type=str)
     args = parser.parse_args()
@@ -56,6 +57,10 @@ def main():
 
     if args.xml_dir is None:
         print("Please specify the directory containing the XML files")
+        exit(1)
+
+    if args.text_dir is None:
+        print("Please specify the directory containing the text files")
         exit(1)
 
     if args.output_model_name is None:
@@ -80,9 +85,11 @@ def main():
 
     for image_file in os.listdir(args.image_dir):
         if image_file.endswith(".png"):
-            captcha_text = os.path.splitext(image_file)[0]
-            xml_file = os.path.join(args.xml_dir, captcha_text + '.xml')
+            image_number = os.path.splitext(image_file)[0]
+            xml_file = os.path.join(args.xml_dir, image_number + '.xml')
             bboxes = parse_xml(xml_file)
+            with open(os.path.join(args.text_dir, image_number + '.txt'), 'r') as text_file:
+                captcha_text = text_file.read().strip()
             raw_data = io.imread(os.path.join(args.image_dir, image_file))
             rgb_data = color.convert_colorspace(raw_data, 'RGB', 'RGB')
             for i, bbox in enumerate(bboxes):
