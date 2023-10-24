@@ -15,15 +15,35 @@ from skimage import io, color
 import xml.etree.ElementTree as ET
 from PIL import Image
 
+# def create_model(input_shape, num_classes):
+#     model = keras.models.Sequential()
+#     model.add(keras.layers.Conv2D(6, kernel_size=(5, 5), strides=(1, 1), activation='tanh', input_shape=input_shape, padding='same'))
+#     model.add(keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), padding='valid'))
+#     model.add(keras.layers.Conv2D(16, kernel_size=(5, 5), strides=(1, 1), activation='tanh', padding='valid'))
+#     model.add(keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), padding='valid'))
+#     model.add(keras.layers.Flatten())
+#     model.add(keras.layers.Dense(120, activation='tanh'))
+#     model.add(keras.layers.Dense(84, activation='tanh'))
+#     model.add(keras.layers.Dense(num_classes, activation='softmax'))
+#     return model
+
 def create_model(input_shape, num_classes):
     model = keras.models.Sequential()
-    model.add(keras.layers.Conv2D(6, kernel_size=(5, 5), strides=(1, 1), activation='tanh', input_shape=input_shape, padding='same'))
-    model.add(keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), padding='valid'))
-    model.add(keras.layers.Conv2D(16, kernel_size=(5, 5), strides=(1, 1), activation='tanh', padding='valid'))
-    model.add(keras.layers.AveragePooling2D(pool_size=(2, 2), strides=(2, 2), padding='valid'))
+    model.add(keras.layers.Conv2D(96, kernel_size=(11, 11), strides=(4, 4), activation='relu', input_shape=input_shape, padding='valid'))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same'))
+    model.add(keras.layers.Conv2D(256, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same'))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same'))
+    model.add(keras.layers.Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same'))
+    model.add(keras.layers.Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same'))
+    model.add(keras.layers.Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same'))
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same'))
     model.add(keras.layers.Flatten())
-    model.add(keras.layers.Dense(120, activation='tanh'))
-    model.add(keras.layers.Dense(84, activation='tanh'))
+    model.add(keras.layers.Dense(4096, activation='relu'))
+    model.add(keras.layers.Dropout(0.5))
+    model.add(keras.layers.Dense(4096, activation='relu'))
+    model.add(keras.layers.Dropout(0.5))
     model.add(keras.layers.Dense(num_classes, activation='softmax'))
     return model
 
@@ -155,24 +175,27 @@ def main():
 
     input_shape = (32, 32, 3)
 
-    model = create_model(input_shape, num_classes)
-    model.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.Adam(1e-5, amsgrad=True), metrics=['accuracy'])
-    model.summary()
+    # with tf.device('/device:GPU:0'):
+    with tf.device('/device:CPU:0'):
+    # with tf.device('/device:XLA_CPU:0'):
+        model = create_model(input_shape, num_classes)
+        model.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.Adam(1e-5, amsgrad=True), metrics=['accuracy'])
+        model.summary()
 
-    callbacks = [
-        keras.callbacks.EarlyStopping(patience=50),
-        keras.callbacks.ModelCheckpoint(args.output_model_name + '.h5', save_best_only=True)
-    ]
+        callbacks = [
+            keras.callbacks.EarlyStopping(patience=50),
+            keras.callbacks.ModelCheckpoint(args.output_model_name + '.h5', save_best_only=True)
+        ]
 
-    try:
-        model.fit(train_data_generator, epochs=args.epochs, validation_data=validation_data_generator, callbacks=callbacks)
-    except KeyboardInterrupt:
-        print('KeyboardInterrupt caught, saving current weights as ' + args.output_model_name + '_resume.h5')
-        model.save_weights(args.output_model_name + '_resume.h5')
+        try:
+            model.fit(train_data_generator, epochs=args.epochs, validation_data=validation_data_generator, callbacks=callbacks)
+        except KeyboardInterrupt:
+            print('KeyboardInterrupt caught, saving current weights as ' + args.output_model_name + '_resume.h5')
+            model.save_weights(args.output_model_name + '_resume.h5')
 
-    model_json = model.to_json()
-    with open(args.output_model_name + '.json', 'w') as json_file:
-        json_file.write(model_json)
+        model_json = model.to_json()
+        with open(args.output_model_name + '.json', 'w') as json_file:
+            json_file.write(model_json)
 
 if __name__ == '__main__':
     main()
